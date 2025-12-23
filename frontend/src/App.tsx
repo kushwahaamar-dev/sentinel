@@ -48,7 +48,7 @@ type Toast = {
 const getApiUrl = () => {
   const url = import.meta.env.VITE_API_URL || 
     (import.meta.env.PROD 
-      ? "https://universal-sentinel-backend.onrender.com" 
+      ? "https://sentinel-2wn6.onrender.com" 
       : "http://127.0.0.1:8000");
   return url.replace(/\/+$/, ""); // Remove trailing slashes
 };
