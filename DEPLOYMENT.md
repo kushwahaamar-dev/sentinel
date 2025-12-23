@@ -88,15 +88,18 @@ Should return JSON with `{"mode": "LIVE", ...}`
    - **Output Directory**: `dist`
    - **Install Command**: `npm install`
 
-### 2.3 Set Environment Variables
+### 2.3 Set Environment Variables (CRITICAL!)
 
-Click **"Environment Variables"** and add:
+Click **"Environment Variables"** tab and add:
 
 ```
-VITE_API_URL=https://your-backend-url.onrender.com
+VITE_API_URL=https://universal-sentinel-backend.onrender.com
 ```
 
-Replace `your-backend-url` with your actual Render backend URL.
+**IMPORTANT**: 
+- Replace `universal-sentinel-backend` with your actual Render service name if different
+- Make sure to set this for **Production**, **Preview**, and **Development** environments
+- After adding, you MUST redeploy for the change to take effect
 
 ### 2.4 Deploy
 

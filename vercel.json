@@ -9,8 +9,5 @@
       "source": "/api/(.*)",
       "destination": "https://universal-sentinel-backend.onrender.com/$1"
     }
-  ],
-  "env": {
-    "VITE_API_URL": "https://universal-sentinel-backend.onrender.com"
-  }
+  ]
 }
