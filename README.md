@@ -1,95 +1,81 @@
 # Universal Sentinel — Autonomous Parametric Desk
 
 Disaster data in → AI verifies → Crypto payout out. This repo contains:
-- **Backend**: FastAPI server with an ingestion switchboard (GDACS, NASA EONET, OWM) and a Gemini-powered "Risk Officer" agent.
-- **Database**: SQLite (`sentinel.db`) for persisting event logs, decisions, and history.
-- **On-chain**: 
-    - **EVM**: `contracts/UniversalSentinel.sol` (minimal payout vault) and `services/onchain.py` (Web3 signer).
-    - **Solana**: `services/onchain_solana.py` (Solana/Anchor integration helper).
-- **UI**: "War Room" dashboard (React/Vite/Tailwind) featuring a real-time globe visualization, streaming command logs, and AI analysis cards.
+- **Backend**: ingestion switchboard (GDACS, NASA EONET, OWM), Gemini risk officer, mock scenarios.
+- **On-chain (EVM stub)**: minimal payout vault in `contracts/UniversalSentinel.sol` plus Python Web3 signer.
+- **UI**: War Room dashboard (React/Vite/Tailwind/FraMer Motion/react-globe.gl) with globe pulses, terminal log, AI decision card, and hidden dev tools for simulations.
 
-> **Note**: By default, the `main.py` application **mocks** the final on-chain transaction for safety and demonstration purposes. To enable real on-chain payouts, uncomment the `PayoutTransactor` logic in `backend/main.py` and ensure your `.env` keys are set.
+> Note: Current on-chain path is EVM. If presenting with Phantom/Solana, swap to a Solana program + client (see “Solana option” below).
 
 ## Project structure
 - `backend/`
-  - `main.py`: FastAPI entry point. Orchestrates the ingestion -> analyze -> payout pipeline.
-  - `agent.py`: Gemini AI wrapper. Handles prompt engineering and JSON decision parsing.
-  - `database.py`: SQLModel setup for SQLite database (`sentinel.db`).
-  - `services/ingestion.py`: Polling logic for GDACS, EONET, and NWS. Standardizes events into `SourceEvent`.
-  - `services/onchain.py`: Web3.py logic to sign/send `disbursePayout` transactions to the EVM contract.
-  - `services/onchain_solana.py`: Helper for Solana SPL token transfers (alternative chain option).
-  - `data/scenarios.json`: Canned events for `MOCK` mode (Tokyo quake, Miami hurricane, etc.).
-  - `config.py`: Configuration loader using Pydantic and `.env`.
-- `contracts/UniversalSentinel.sol`: Solidity smart contract for the insurance vault. Features `riskOfficer` role and `maxPayout` limits.
-- `frontend/`: React + Vite application.
-  - `src/components/GlobeView.tsx`: Interactive 3D globe visualization.
-  - `src/App.tsx`: Main dashboard logic handling `LIVE`/`MOCK` modes and polling.
-- `requirements.txt`: Python dependencies (FastAPI, Web3, Google Generative AI, etc.).
-- `sentinel.db`: SQLite database file (created on first run).
+  - `services/ingestion.py`: GDACS/EONET/OWM polling + mock loader via SENTINEL_MODE.
+  - `agent.py`: Gemini CRO prompt and JSON decision parsing (MOCK-mode deterministic fallback).
+  - `services/onchain.py`: Web3 payout signer/sender for UniversalSentinel contract (EVM stub).
+  - `services/onchain_solana.py`: Solana payout helper (SPL USDC from vault ATA to recipient).
+  - `data/scenarios.json`: Three canned scenarios (Tokyo quake, Miami cane, Yellowstone anomaly).
+  - `config.py`: pydantic settings loader from `.env`.
+- `contracts/UniversalSentinel.sol`: EVM vault contract (risk officer gated payouts, max cap).
+- `frontend/`: React/Vite/Tailwind War Room UI (globe, streaming log, AI card, dev tools).
+- `requirements.txt`: Backend deps (FastAPI, Solana, Anchorpy, Gemini, httpx, etc.).
+- `env.example`: Copy to `.env` and fill secrets.
 
 ## Environment variables (copy `env.example` → `.env`)
-- `SENTINEL_MODE` — `MOCK` (uses `scenarios.json`) or `LIVE` (polls real APIs).
+- `SENTINEL_MODE` — `MOCK` (use scenarios.json) or `LIVE` (hit GDACS/EONET/OWM).
 - `GEMINI_API_KEY` — Google Generative AI key.
 - `OWM_API_KEY` — OpenWeatherMap One Call 3.0 key (free tier works).
-- `SENTINEL_PRIVATE_KEY` — EVM private key for the "Risk Officer" wallet (server side). **Do not commit.**
-- `ETHERSCAN_BASE_URL` — Base URL for transaction links (e.g., Sepolia Etherscan).
-- `SOLANA_RPC_URL` — Your Solana RPC (if using Solana).
-- `SOLANA_USDC_MINT` — SPL USDC mint address.
-- `SOLANA_PRIVATE_KEY` — Solana private key (if using Solana).
+- `SENTINEL_PRIVATE_KEY` — EVM private key for payout signer (server side). **Do not commit.**
+- `ETHERSCAN_BASE_URL` — Etherscan base (unused if you switch to Solana).
+- `SOLANA_RPC_URL` — Your Solana RPC (mainnet-beta or devnet).
+- `SOLANA_PROGRAM_ID` — Your program ID (if you deploy a custom Anchor program).
+- `SOLANA_USDC_MINT` — SPL USDC mint (e.g., devnet: So111... for wrapped SOL or dev USDC).
+- `SOLANA_VAULT_ATA` — Vault ATA holding USDC for payouts.
+- `SOLANA_PRIVATE_KEY` — Base58 or JSON array secret key for server-side signer. Keep off Git.
 
-## Setup & Running
+### How to get the keys
+- Gemini: https://aistudio.google.com/app/apikey
+- OpenWeatherMap: https://home.openweathermap.org/api_keys (One Call 3.0)
+- EVM key: create via your wallet/CLI; fund with testnet ETH/USDC for demos. Keep off Git.
+- Solana (if swapping chains): generate a keypair via `solana-keygen new`, store the secret off-repo; use Phantom for UI signing if desired.
 
-### 1. Backend
+## Backend setup
 ```bash
 cd universal-sentinel
-python -m venv .venv
-source .venv/bin/activate  # or .venv\Scripts\activate on Windows
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp env.example .env        # Edit .env with your keys
+cp env.example .env  # then fill values
 ```
 
-Run the server:
+Run the API server:
 ```bash
 uvicorn backend.main:app --reload
 ```
-The API will be available at `http://localhost:8000`.
 
-### 2. Frontend
+## Frontend setup
 ```bash
 cd universal-sentinel/frontend
 npm install
 npm run dev
 ```
-Open `http://localhost:5173`.
+Open `http://localhost:5173`. Dev Tools (bottom-right) trigger mock quake/fire; shows globe pulses, AI card, vault drain, and an Etherscan link placeholder.
 
-## Dashboard Features
+## Modes
+- `MOCK`: loads `backend/data/scenarios.json`; UI dev tools simulate events without internet.
+- `LIVE`: polls GDACS RSS, NASA EONET, and OWM for high-risk cities. Handle network loss gracefully (“Signal Lost” logged).
 
-- **Mode Toggle**: Switch between `LIVE` and `MOCK` modes directly from the UI or via API.
-- **Real-time Globe**: Visualizes disaster locations. In `LIVE` mode, this updates from real data feeds.
-- **Command Log**: Streams system events, AI "reasoning" steps, and transaction statuses.
-- **Policy Viewer**: Shows the current parametric triggers (e.g., "Earthquake > Mag 6.5").
-- **Simulation Tools**: In `MOCK` mode, use the "DevTools" panel to instantly trigger specific disaster scenarios.
+## Solana path (Phantom-friendly)
+- Program: deploy an Anchor program exposing `payout(recipient, amount, reason)` with authority checks and a USDC vault ATA.
+- Backend: use `backend/services/onchain_solana.py` (solana-py/anchorpy) to sign and send payout transfers; return the signature for a Solscan link.
+- UI: already points receipts to `https://solscan.io/tx/<sig>`. Optionally add Phantom connect for client-side signing; safest demo is server-signed.
 
-## AI & Logic
+## Demo checklist
+- Fill `.env` (never commit real keys). For stage, use fresh/regenerated keys.
+- Choose mode: `SENTINEL_MODE=MOCK` for offline demos; `LIVE` for real feeds.
+- Ensure internet for globe textures and live APIs.
+- Watch the AI card show “Processing...” during Gemini calls.
+- Etherscan/Solscan link should open in a new tab after payout hash/signature is returned.
 
-The core logic resides in `backend/agent.py`. It constructs a prompt for the Gemini 1.5 Flash model including:
-1. The raw disaster data (magnitude, location, severity).
-2. The active policy parameters.
-3. Instructions to act as a conservative "Risk Officer".
-
-The AI returns a structured JSON decision: `PAYOUT` or `DENY`, along with a confidence score and reasoning.
-
-## On-Chain Integration
-
-### EVM (Default Path)
-The `UniversalSentinel.sol` contract is designed to be deployed on an EVM chain (Ethereum, Base, Polygon, etc.).
-- **Roles**: `treasury` (can fund/sweep) and `riskOfficer` (can payout).
-- **Flow**: The backend (holding the `riskOfficer` key) calls `disbursePayout(recipient, amount, reason)`.
-
-### Solana (Alternative)
-The project includes `onchain_solana.py` to demonstrate how this could work on Solana using SPL transfers. To use this, you would modify `backend/main.py` to use the Solana service instead of the EVM transactor.
-
-## Security & Best Practices
-- **Private Keys**: Stored only in `.env`. Never committed.
-- **Server-Side Signing**: Keys are held by the backend, not the frontend client. The UI only receives the transaction hash.
-- **Max Payout**: The smart contract enforces a hard cap on payouts per transaction to limit loss in case of a compromised agent.
+## Security & hygiene
+- Secrets stay in `.env` only. Regenerate any key that was ever in versioned files.
+- Keep signer keys server-side; don’t ship them to the browser.
+- Fund the payout vault with test assets for demos; set `maxPayout` conservatively.
