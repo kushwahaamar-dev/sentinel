@@ -7,10 +7,18 @@ type Stats = {
   total_payouts: number;
   total_payout_amount: number;
   vault_balance: number;
+  initial_vault_balance: number;
   events_by_type: Record<string, number>;
   uptime_seconds: number;
   mode: string;
   last_updated: string;
+  last_payout: {
+    timestamp: string;
+    amount: string;
+    ngo_name: string;
+    ngo_address: string;
+    disaster_type: string;
+  } | null;
 };
 
 type Props = {
@@ -138,6 +146,22 @@ export function StatsPanel({ apiUrl }: Props) {
                       )}
                     </div>
                   </div>
+
+                  {/* Last Payout Info */}
+                  {stats.last_payout && (
+                    <div className="glass rounded-xl p-4 border-l-2 border-l-sky-500">
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-slate-400 mb-2">Last Payout</div>
+                      <div className="text-sm font-semibold text-white mb-1">{stats.last_payout.ngo_name}</div>
+                      <div className="text-xs text-slate-300 font-mono mb-1">{stats.last_payout.ngo_address}</div>
+                      <div className="flex items-center justify-between text-xs text-slate-400">
+                        <span>${Number(stats.last_payout.amount).toLocaleString()} USDC</span>
+                        <span>{new Date(stats.last_payout.timestamp).toLocaleString()}</span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-1 capitalize">
+                        {stats.last_payout.disaster_type}
+                      </div>
+                    </div>
+                  )}
 
                   {/* System Status */}
                   <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-white/5">

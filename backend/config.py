@@ -19,6 +19,10 @@ class Settings(BaseSettings):
         alias="ETHERSCAN_BASE_URL",
         description="Used to build clickable payout links.",
     )
+    # Blockchain configuration (optional - if not set, uses mock transactions)
+    rpc_url: Optional[str] = Field(default=None, alias="RPC_URL", description="Ethereum RPC endpoint (e.g., Sepolia testnet)")
+    contract_address: Optional[str] = Field(default=None, alias="CONTRACT_ADDRESS", description="UniversalSentinel contract address")
+    chain_id: Optional[int] = Field(default=None, alias="CHAIN_ID", description="Chain ID (e.g., 11155111 for Sepolia)")
     # Solana / Phantom path
     solana_rpc_url: Optional[str] = Field(default=None, alias="SOLANA_RPC_URL")
     solana_program_id: Optional[str] = Field(default=None, alias="SOLANA_PROGRAM_ID")

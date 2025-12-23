@@ -186,43 +186,47 @@ class IngestionSwitchboard:
             return [], _http_status_label("EONET", exc)
 
         now = datetime.now(timezone.utc)
+        # Expand window to 7 days to catch more events (wildfires/volcanoes can persist)
+        week_ago = now - timedelta(days=7)
         day_ago = now - timedelta(hours=24)
-        hour_ago = now - timedelta(hours=1)
 
         events: List[SourceEvent] = []
         for event in payload.get("events", []):
             geometries = event.get("geometry", [])
-            recent_updates = []
-            for geom in geometries:
-                timestamp = _parse_iso8601(geom.get("date", ""))
-                if timestamp and timestamp >= day_ago:
-                    recent_updates.append((timestamp, geom))
-
-            if not recent_updates:
+            if not geometries:
+                continue
+                
+            # Get the most recent geometry update
+            latest_geom = max(geometries, key=lambda g: _parse_iso8601(g.get("date", "")) or datetime.min.replace(tzinfo=timezone.utc))
+            latest_ts = _parse_iso8601(latest_geom.get("date", ""))
+            
+            # Include events updated within the last 7 days (more inclusive)
+            if not latest_ts or latest_ts < week_ago:
                 continue
 
-            recent_updates.sort(key=lambda g: g[0], reverse=True)
-            latest_ts, latest_geom = recent_updates[0]
             coords = latest_geom.get("coordinates", [])
             try:
                 lon, lat = float(coords[0]), float(coords[1])
             except Exception:
                 continue
 
-            active_count = sum(1 for ts, _ in recent_updates if ts >= hour_ago)
-            severity = "active" if active_count > 1 else "recent"
+            # Determine severity based on how recent the update is
+            if latest_ts >= day_ago:
+                severity = "active"
+            else:
+                severity = "recent"
             events.append(
                 SourceEvent(
                     source="eonet",
                     disaster_type=event.get("categories", [{}])[0].get("id", "wildfire").lower(),
                     description=event.get("title", ""),
                     location=(lat, lon),
-                    raw={"geometry": recent_updates, "id": event.get("id"), "link": event.get("link")},
+                    raw={"geometry": geometries, "id": event.get("id"), "link": event.get("link"), "latest_date": latest_geom.get("date")},
                     severity=severity,
                 )
             )
 
-        status = f"EONET: {len(events)} events within 24h" if events else "EONET: Quiet"
+        status = f"EONET: {len(events)} events" if events else "EONET: Quiet"
         return events, status
 
     def fetch_owm(self) -> Tuple[List[SourceEvent], str]:
@@ -265,55 +269,66 @@ class IngestionSwitchboard:
         if failures == len(HIGH_RISK_ZONES):
             status = _http_status_label("OWM", last_exc) if last_exc else "OWM: Signal Lost"
         else:
-        status = f"OWM: {len(events)} alerts" if events else "OWM: No warnings"
+            status = f"OWM: {len(events)} alerts" if events else "OWM: No warnings"
         return events, status
 
     def fetch_nws(self) -> Tuple[List[SourceEvent], str]:
         """
         FREE replacement for OWM alerts: NOAA/NWS active alerts (US-only).
-        Endpoint: https://api.weather.gov/alerts/active?point=lat,lon
+        First tries global active alerts, then falls back to point-specific queries.
         """
         events: List[SourceEvent] = []
         failures = 0
-        unsupported = 0
         last_exc: Optional[Exception] = None
-
-        for zone in HIGH_RISK_ZONES_US:
-            try:
-                payload = _get_json_with_retries(
-                    self.client,
-                    NWS_ALERTS_URL,
-                    name="NWS",
-                    params={"point": f'{zone["lat"]},{zone["lon"]}'},
-                    headers={"Accept": "application/geo+json, application/json;q=0.9"},
-                    retries=2,
-                )
-            except Exception as exc:
-                # NWS returns 404 for unsupported/invalid point; treat that as "unsupported region", not outage.
-                if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 404:
-                    unsupported += 1
-                else:
-                    failures += 1
-                    last_exc = exc
-                continue
-
+        
+        # First, try to get all active alerts (more comprehensive)
+        try:
+            payload = _get_json_with_retries(
+                self.client,
+                NWS_ALERTS_URL,
+                name="NWS",
+                params={},  # No point parameter = get all active alerts
+                headers={"Accept": "application/geo+json, application/json;q=0.9"},
+                retries=2,
+            )
+            
             features = payload.get("features", []) or []
+            # Filter for significant alerts only (warnings, watches, not just advisories)
             for feat in features:
                 props = (feat or {}).get("properties", {}) or {}
                 headline = (props.get("headline") or props.get("event") or "").strip()
                 description = (props.get("description") or "").strip()
                 instruction = (props.get("instruction") or "").strip()
-                severity = (props.get("severity") or "").strip()
+                severity = (props.get("severity") or "").strip().lower()
                 sender = (props.get("senderName") or "NWS").strip()
+                
+                # Get location from geometry if available
+                geom = feat.get("geometry", {})
+                coords = None
+                if geom and geom.get("type") == "Point":
+                    coords = geom.get("coordinates", [])
+                elif geom and geom.get("type") == "Polygon":
+                    # Use centroid of polygon
+                    rings = geom.get("coordinates", [])
+                    if rings and rings[0]:
+                        coords = [sum(c[0] for c in rings[0]) / len(rings[0]), 
+                                 sum(c[1] for c in rings[0]) / len(rings[0])]
 
                 hay = f"{headline} {description} {instruction}".lower()
-                if any(k in hay for k in ["warning", "evac", "evacu", "hurricane", "tornado", "tropical storm", "storm surge"]):
+                # Focus on warnings and watches (more significant than advisories)
+                if any(k in hay for k in ["warning", "watch", "evac", "evacu", "hurricane", "tornado", "tropical storm", "storm surge", "severe thunderstorm", "flash flood"]) or severity in ["extreme", "severe"]:
+                    if coords:
+                        lat, lon = float(coords[1]), float(coords[0])
+                    else:
+                        # Fallback: use first high-risk zone if no coordinates
+                        lat, lon = HIGH_RISK_ZONES_US[0]["lat"], HIGH_RISK_ZONES_US[0]["lon"]
+                    
                     events.append(
                         SourceEvent(
                             source="nws",
                             disaster_type="storm",
                             description=headline or description or "NWS Alert",
-                            location=(zone["lat"], zone["lon"]),
+                            location=(lat, lon),
                             raw={
                                 "sender_name": sender,
                                 "headline": headline,
@@ -327,13 +342,65 @@ class IngestionSwitchboard:
                             severity=severity or headline,
                         )
                     )
+            
+            # Limit to top 20 most significant alerts to avoid spam
+            events = events[:20]
+            status = f"NWS: {len(events)} significant alerts" if events else "NWS: No warnings"
+            
+        except Exception as exc:
+            logger.warning("NWS global fetch failed, trying point-specific: %s", exc)
+            last_exc = exc
+            failures += 1
+            
+            # Fallback to point-specific queries
+            for zone in HIGH_RISK_ZONES_US:
+                try:
+                    payload = _get_json_with_retries(
+                        self.client,
+                        NWS_ALERTS_URL,
+                        name="NWS",
+                        params={"point": f'{zone["lat"]},{zone["lon"]}'},
+                        headers={"Accept": "application/geo+json, application/json;q=0.9"},
+                        retries=1,
+                    )
+                    
+                    features = payload.get("features", []) or []
+                    for feat in features:
+                        props = (feat or {}).get("properties", {}) or {}
+                        headline = (props.get("headline") or props.get("event") or "").strip()
+                        description = (props.get("description") or "").strip()
+                        instruction = (props.get("instruction") or "").strip()
+                        severity = (props.get("severity") or "").strip()
+                        sender = (props.get("senderName") or "NWS").strip()
 
-        if failures and failures == len(HIGH_RISK_ZONES_US):
-            status = _http_status_label("NWS", last_exc) if last_exc else "NWS: Signal Lost"
-        else:
-            status = f"NWS: {len(events)} alerts" if events else "NWS: No warnings"
-            if unsupported:
-                status = f"{status} (some points unsupported)"
+                        hay = f"{headline} {description} {instruction}".lower()
+                        if any(k in hay for k in ["warning", "watch", "evac", "evacu", "hurricane", "tornado", "tropical storm", "storm surge"]):
+                            events.append(
+                                SourceEvent(
+                                    source="nws",
+                                    disaster_type="storm",
+                                    description=headline or description or "NWS Alert",
+                                    location=(zone["lat"], zone["lon"]),
+                                    raw={
+                                        "sender_name": sender,
+                                        "headline": headline,
+                                        "severity": severity,
+                                        "description": description,
+                                        "instruction": instruction,
+                                        "areaDesc": props.get("areaDesc"),
+                                        "id": props.get("id"),
+                                        "web": props.get("web"),
+                                    },
+                                    severity=severity or headline,
+                                )
+                            )
+                except Exception:
+                    continue
+
+            if failures and not events:
+                status = _http_status_label("NWS", last_exc) if last_exc else "NWS: Signal Lost"
+            else:
+                status = f"NWS: {len(events)} alerts" if events else "NWS: No warnings"
 
         return events, status
 

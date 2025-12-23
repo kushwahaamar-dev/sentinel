@@ -1,0 +1,110 @@
+[
+  {
+    "id": "ngo-red-cross-global",
+    "name": "International Red Cross",
+    "address": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+    "verified": true,
+    "disaster_types": ["earthquake", "flood", "storm", "fire"],
+    "regions": ["global"],
+    "description": "Global humanitarian organization"
+  },
+  {
+    "id": "ngo-unicef-asia",
+    "name": "UNICEF Asia Pacific",
+    "address": "0x8ba1f109551bD432803012645ac136c22C1729AB",
+    "verified": true,
+    "disaster_types": ["earthquake", "flood", "storm"],
+    "regions": ["asia", "pacific"],
+    "description": "Children's emergency fund for Asia-Pacific"
+  },
+  {
+    "id": "ngo-japan-red-cross",
+    "name": "Japanese Red Cross Society",
+    "address": "0x9C8aF3b4E5D6F7A8B9C0D1E2F3A4B5C6D7E8F9A0",
+    "verified": true,
+    "disaster_types": ["earthquake", "tsunami", "volcano", "flood"],
+    "regions": ["asia", "pacific"],
+    "description": "Japan's primary disaster response organization"
+  },
+  {
+    "id": "ngo-doctor-without-borders",
+    "name": "Doctors Without Borders",
+    "address": "0x1234567890123456789012345678901234567890",
+    "verified": true,
+    "disaster_types": ["earthquake", "flood", "fire", "volcano"],
+    "regions": ["global"],
+    "description": "Medical emergency response"
+  },
+  {
+    "id": "ngo-salvation-army-us",
+    "name": "Salvation Army USA",
+    "address": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+    "verified": true,
+    "disaster_types": ["storm", "flood", "fire", "hurricane"],
+    "regions": ["north_america", "us"],
+    "description": "US disaster relief organization"
+  },
+  {
+    "id": "ngo-american-red-cross",
+    "name": "American Red Cross",
+    "address": "0xFEDCBA9876543210FEDCBA9876543210FEDCBA98",
+    "verified": true,
+    "disaster_types": ["storm", "hurricane", "flood", "fire", "earthquake"],
+    "regions": ["us", "north_america"],
+    "description": "US national disaster response"
+  },
+  {
+    "id": "ngo-fema-partner",
+    "name": "FEMA Partner Relief Fund",
+    "address": "0x1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B",
+    "verified": true,
+    "disaster_types": ["hurricane", "storm", "flood", "fire"],
+    "regions": ["us"],
+    "description": "FEMA-verified disaster relief partner"
+  },
+  {
+    "id": "ngo-volcano-response",
+    "name": "Volcanic Disaster Response Network",
+    "address": "0x5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B",
+    "verified": true,
+    "disaster_types": ["volcano", "fire", "earthquake"],
+    "regions": ["global", "us"],
+    "description": "Specialized volcanic disaster response"
+  },
+  {
+    "id": "ngo-world-vision",
+    "name": "World Vision International",
+    "address": "0x7B8C9D0E1F2A3B4C5D6E7F8A9B0C1D2E3F4A5B6C",
+    "verified": true,
+    "disaster_types": ["earthquake", "flood", "storm", "fire"],
+    "regions": ["global", "asia"],
+    "description": "Global child-focused humanitarian aid"
+  },
+  {
+    "id": "ngo-oxfam",
+    "name": "Oxfam International",
+    "address": "0x3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D",
+    "verified": true,
+    "disaster_types": ["flood", "storm", "earthquake"],
+    "regions": ["global"],
+    "description": "Global poverty and disaster relief"
+  },
+  {
+    "id": "ngo-catholic-relief",
+    "name": "Catholic Relief Services",
+    "address": "0x9D0E1F2A3B4C5D6E7F8A9B0C1D2E3F4A5B6C7D8E",
+    "verified": true,
+    "disaster_types": ["earthquake", "flood", "storm", "hurricane"],
+    "regions": ["global", "us"],
+    "description": "International humanitarian agency"
+  },
+  {
+    "id": "ngo-save-children",
+    "name": "Save the Children",
+    "address": "0x2E3F4A5B6C7D8E9F0A1B2C3D4E5F6A7B8C9D0E1F",
+    "verified": true,
+    "disaster_types": ["earthquake", "flood", "storm"],
+    "regions": ["global", "asia"],
+    "description": "Children's emergency response"
+  }
+]

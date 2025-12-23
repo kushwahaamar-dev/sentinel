@@ -36,7 +36,26 @@ const NODES = [
 
 export function GlobeView({ events, userLocation, onEventClick }: Props) {
   const globeRef = useRef<GlobeMethods | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
+  const [dimensions, setDimensions] = useState({ width: 900, height: 600 });
+
+  // Update dimensions based on container size
+  useEffect(() => {
+    const updateDimensions = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setDimensions({
+          width: rect.width,
+          height: rect.height
+        });
+      }
+    };
+    
+    updateDimensions();
+    window.addEventListener('resize', updateDimensions);
+    return () => window.removeEventListener('resize', updateDimensions);
+  }, []);
 
   // Generate random arcs for "network traffic" effect
   const arcsData = useMemo(() => {
@@ -119,12 +138,12 @@ export function GlobeView({ events, userLocation, onEventClick }: Props) {
   }
 
   return (
-    <div className="glass h-full w-full overflow-hidden rounded-3xl border border-white/5 shadow-2xl relative">
+    <div ref={containerRef} className="glass h-full w-full overflow-hidden rounded-3xl border border-white/5 shadow-2xl relative">
         {!mounted && <div className="absolute inset-0 flex items-center justify-center text-neon animate-pulse">INITIALIZING OPTICS...</div>}
       <Globe
         ref={globeRef}
-        height={600}
-        width={900}
+        height={dimensions.height}
+        width={dimensions.width}
         backgroundColor="#00000000" // Transparent to show CSS radial gradient behind if needed, but we used stars
         globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
         bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"

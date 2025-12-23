@@ -11,6 +11,7 @@ import { PolicyViewer } from "./components/PolicyViewer";
 import { SourceStatus } from "./components/SourceStatus";
 import { ModeToggle } from "./components/ModeToggle";
 import { ToastContainer, createToast, ToastType } from "./components/Toast";
+import { DisasterAlert } from "./components/DisasterAlert";
 import { soundEngine } from "./utils/sounds";
 import { ShieldCheck, Loader2, ExternalLink, RefreshCw } from "lucide-react";
 
@@ -42,8 +43,8 @@ type Toast = {
   duration?: number;
 };
 
-// Use 127.0.0.1 to avoid IPv6 localhost (::1) connection issues in some environments
-const API_URL = "http://127.0.0.1:8000";
+// Use environment variable for production, fallback to localhost for development
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 const ETHERSCAN_BASE = "https://etherscan.io/tx/";
 const SOLSCAN_BASE = "https://solscan.io/tx/";
 
@@ -59,6 +60,8 @@ export default function App() {
   const [liveBooted, setLiveBooted] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [lastPollTime, setLastPollTime] = useState<Date | null>(null);
+  const [disasterAlert, setDisasterAlert] = useState<any>(null);
+  const [processedEventIds, setProcessedEventIds] = useState<Set<string>>(new Set());
 
   const addToast = useCallback((type: ToastType, message: string) => {
     setToasts(prev => [...prev, createToast(type, message)]);
@@ -69,7 +72,12 @@ export default function App() {
   }, []);
 
   const logLine = useCallback((text: string, status?: "ok" | "warn" | "fail") => {
-    setLogs((prev) => [...prev.slice(-15), { text, status }]);
+    setLogs((prev) => {
+      // Dedupe: don't add if this exact log already exists
+      const exists = prev.some(l => l.text === text);
+      if (exists) return prev;
+      return [...prev.slice(-15), { text, status }];
+    });
   }, []);
 
   // Keyboard shortcuts
@@ -186,16 +194,20 @@ export default function App() {
         // Merge by id (dedupe) and check for new events
         setEvents((prev) => {
           const map = new Map(prev.map((x) => [x.id, x]));
-          let newCount = 0;
+          const newEvents: SentinelEvent[] = [];
+          
           for (const ev of incoming) {
-            if (!map.has(ev.id)) newCount++;
+            if (!map.has(ev.id)) {
+              newEvents.push(ev);
+            }
             map.set(ev.id, { ...map.get(ev.id), ...ev });
           }
           
-          // Alert for new events
-          if (newCount > 0 && prev.length > 0) {
+          // For new disasters in LIVE mode, just notify (don't show pop-up unless there's a payout)
+          if (newEvents.length > 0 && mode === "LIVE") {
             soundEngine.play("alert");
-            addToast("warning", `${newCount} new disaster event${newCount > 1 ? "s" : ""} detected!`);
+            addToast("warning", `${newEvents.length} new disaster event${newEvents.length > 1 ? "s" : ""} detected!`);
+            // Note: Pop-up will only show after actual payout via handleAnalysisComplete
           }
           
           return Array.from(map.values()).slice(-30);
@@ -213,7 +225,21 @@ export default function App() {
       cancelled = true;
       window.clearInterval(t);
     };
-  }, [mode, liveBooted, logLine, addToast]);
+  }, [mode, liveBooted, logLine, addToast, processedEventIds]);
+
+  const refreshStats = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/statistics`);
+      if (res.ok) {
+        const stats = await res.json();
+        setVaultBalance(stats.vault_balance || 10000);
+        return stats;
+      }
+    } catch (e) {
+      console.error("Failed to refresh stats:", e);
+    }
+    return null;
+  }, []);
 
   const triggerScenario = async (scenario: "quake" | "fire" | "storm") => {
     setProcessing(true);
@@ -272,13 +298,82 @@ export default function App() {
              logLine("AI: CROSS-REFERENCING POPULATION DATA...", "ok");
         }, 1600);
 
-        setTimeout(() => {
+        setTimeout(async () => {
             setDecision(ai);
             if (ai.decision === "PAYOUT") {
                 soundEngine.play("payout");
                 logLine(`DECISION: PAYOUT APPROVED ($${ai.payout_amount_usdc} USDC)`, "ok");
                 addToast("success", `Payout of $${Number(ai.payout_amount_usdc).toLocaleString()} approved!`);
-                setVaultBalance(v => Math.max(0, v - parseFloat(ai.payout_amount_usdc)));
+                
+                // Refresh stats from backend to get NGO info and accurate balance
+                const stats = await refreshStats();
+                if (stats) {
+                  setVaultBalance(stats.vault_balance);
+                  
+                  // Show disaster alert pop-up with payment receipt and NGO info (MOCK mode)
+                  if (stats.last_payout && mode === "MOCK") {
+                    // Fetch eligible NGOs for this disaster
+                    fetch(`${API_URL}/ngos/eligible`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        disaster_type: evt.disaster_type,
+                        location: [evt.location[0], evt.location[1]],
+                        severity: evt.raw?.severity,
+                      }),
+                    })
+                      .then(res => res.json())
+                      .then(ngoData => {
+                        // Show pop-up after a short delay (2 seconds after payout)
+                        setTimeout(() => {
+                          setDisasterAlert({
+                            id: newEvent.id,
+                            disaster_type: evt.disaster_type,
+                            description: evt.description,
+                            location: [evt.location[0], evt.location[1]],
+                            severity: evt.raw?.severity,
+                            timestamp: stats.last_payout.timestamp,
+                            eligible_ngos: ngoData.eligible || [],
+                            selected_ngo: {
+                              id: ngoData.selected?.id || "",
+                              name: stats.last_payout.ngo_name,
+                              address: stats.last_payout.ngo_address,
+                              reason: ngoData.selected?.reason || "Selected based on region match and disaster type support"
+                            },
+                            payout_amount: ai.payout_amount_usdc,
+                            tx_hash: ai.tx_hash,
+                          });
+                        }, 2000);
+                      })
+                      .catch(err => {
+                        console.error("Failed to fetch eligible NGOs:", err);
+                        // Still show pop-up with basic info
+                        setTimeout(() => {
+                          setDisasterAlert({
+                            id: newEvent.id,
+                            disaster_type: evt.disaster_type,
+                            description: evt.description,
+                            location: [evt.location[0], evt.location[1]],
+                            severity: evt.raw?.severity,
+                            timestamp: stats.last_payout.timestamp,
+                            eligible_ngos: [],
+                            selected_ngo: {
+                              id: "",
+                              name: stats.last_payout.ngo_name,
+                              address: stats.last_payout.ngo_address,
+                              reason: "Selected based on region match and disaster type support"
+                            },
+                            payout_amount: ai.payout_amount_usdc,
+                            tx_hash: ai.tx_hash,
+                          });
+                        }, 2000);
+                      });
+                  }
+                } else {
+                  // Fallback
+                  setVaultBalance(v => Math.max(0, v - parseFloat(ai.payout_amount_usdc)));
+                }
+                
                 if (ai.tx_hash) {
                     logLine(`BLOCKCHAIN: TX CONFIRMED ${ai.tx_hash.substring(0, 10)}...`, "ok");
                     setEvents(prev => prev.map(e => e.id === newEvent.id ? { ...e, txHash: ai.tx_hash } : e));
@@ -291,7 +386,7 @@ export default function App() {
             setProcessing(false);
         }, 2500);
 
-      } else {
+    } else {
         logLine("SCAN: NO EVENTS FOUND FOR SCENARIO", "warn");
         addToast("warning", "No events found for this scenario");
         setProcessing(false);
@@ -311,22 +406,92 @@ export default function App() {
     return decision.decision === "PAYOUT" ? "text-emerald-300" : "text-rose-300";
   }, [decision]);
 
-  const handleAnalysisComplete = useCallback((result: Decision) => {
+  const handleAnalysisComplete = useCallback(async (result: Decision) => {
     setDecision(result);
     if (result.decision === "PAYOUT") {
-      setVaultBalance(v => Math.max(0, v - parseFloat(result.payout_amount_usdc)));
+      // Refresh stats from backend to get NGO info and accurate balance
+      const stats = await refreshStats();
+      if (stats) {
+        setVaultBalance(stats.vault_balance);
+        
+        // Show disaster alert pop-up with payment receipt and NGO info
+        if (stats.last_payout && selectedEvent) {
+          // Fetch eligible NGOs for this disaster
+          fetch(`${API_URL}/ngos/eligible`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              disaster_type: selectedEvent.disaster_type || selectedEvent.type,
+              location: [selectedEvent.lat, selectedEvent.lon],
+              severity: selectedEvent.rawData?.severity,
+            }),
+          })
+            .then(res => res.json())
+            .then(ngoData => {
+              // Show pop-up after a short delay (2 seconds after payout)
+              setTimeout(() => {
+                setDisasterAlert({
+                  id: selectedEvent.id,
+                  disaster_type: selectedEvent.disaster_type || selectedEvent.type,
+                  description: selectedEvent.description || selectedEvent.label,
+                  location: [selectedEvent.lat, selectedEvent.lon],
+                  severity: selectedEvent.rawData?.severity,
+                  timestamp: stats.last_payout.timestamp,
+                  eligible_ngos: ngoData.eligible || [],
+                  selected_ngo: {
+                    id: ngoData.selected?.id || "",
+                    name: stats.last_payout.ngo_name,
+                    address: stats.last_payout.ngo_address,
+                    reason: ngoData.selected?.reason || "Selected based on region match and disaster type support"
+                  },
+                  payout_amount: result.payout_amount_usdc,
+                  tx_hash: result.tx_hash,
+                });
+              }, 2000);
+            })
+            .catch(err => {
+              console.error("Failed to fetch eligible NGOs:", err);
+              // Still show pop-up with basic info
+              setTimeout(() => {
+                setDisasterAlert({
+                  id: selectedEvent.id,
+                  disaster_type: selectedEvent.disaster_type || selectedEvent.type,
+                  description: selectedEvent.description || selectedEvent.label,
+                  location: [selectedEvent.lat, selectedEvent.lon],
+                  severity: selectedEvent.rawData?.severity,
+                  timestamp: stats.last_payout.timestamp,
+                  eligible_ngos: [],
+                  selected_ngo: {
+                    id: "",
+                    name: stats.last_payout.ngo_name,
+                    address: stats.last_payout.ngo_address,
+                    reason: "Selected based on region match and disaster type support"
+                  },
+                  payout_amount: result.payout_amount_usdc,
+                  tx_hash: result.tx_hash,
+                });
+              }, 2000);
+            });
+        }
+      } else {
+        // Fallback to local calculation
+        setVaultBalance(v => Math.max(0, v - parseFloat(result.payout_amount_usdc)));
+      }
+      
       if (result.tx_hash && selectedEvent) {
         setEvents(prev => prev.map(e => 
           e.id === selectedEvent.id ? { ...e, txHash: result.tx_hash } : e
         ));
       }
     }
-  }, [selectedEvent]);
+  }, [selectedEvent, refreshStats]);
 
   const handleModeChange = useCallback((newMode: "LIVE" | "MOCK") => {
     setMode(newMode);
     setEvents([]);
     setLiveBooted(false);
+    setDisasterAlert(null); // Clear any existing pop-up when switching modes
+    setProcessedEventIds(new Set()); // Reset processed events
     logLine(`MODE SWITCHED TO: ${newMode}`, "ok");
     addToast("info", `Switched to ${newMode} mode`);
     soundEngine.play("success");
@@ -339,6 +504,44 @@ export default function App() {
       })
       .catch(() => {});
   }, [logLine, addToast]);
+
+  // Poll for logs regularly to show NGO info and other backend logs (only new ones)
+  useEffect(() => {
+    let lastLogCount = 0;
+    
+    const pollLogs = async () => {
+      try {
+        const res = await fetch(`${API_URL}/status`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.logs) && data.logs.length > 0) {
+            // Only add new logs (logs that appeared since last poll)
+            const newLogs = data.logs.slice(lastLogCount);
+            lastLogCount = data.logs.length;
+            
+            if (newLogs.length > 0) {
+              setLogs(prev => {
+                const existing = new Set(prev.map(l => l.text));
+                const uniqueNewLogs = newLogs
+                  .filter((l: any) => !existing.has(l.text))
+                  .map((l: any) => ({ text: l.text, status: l.status || "ok" }));
+                return [...prev, ...uniqueNewLogs].slice(-30); // Keep last 30 logs
+              });
+            }
+          }
+        }
+      } catch (e) {
+        // Silently fail
+      }
+    };
+
+    // Poll every 3 seconds for logs (less frequent to reduce noise)
+    const interval = setInterval(pollLogs, 3000);
+    // Initial poll after a delay
+    setTimeout(pollLogs, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="min-h-screen bg-ocean text-gray-100 font-mono">
@@ -368,9 +571,9 @@ export default function App() {
         </div>
       </div>
 
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 px-6 pt-20 pb-6 lg:flex-row h-screen relative z-10">
+      <div className="mx-auto flex max-w-7xl flex-col gap-6 px-6 pt-20 pb-6 lg:flex-row h-[calc(100vh-5rem)] relative z-10">
         {/* Left Panel: Globe */}
-        <div className="w-full lg:w-8/12 h-[55vh] lg:h-auto relative">
+        <div className="w-full lg:w-8/12 h-full relative flex-1">
           <div className="absolute top-4 left-4 z-10 pointer-events-none">
              <div className="text-xs uppercase tracking-[0.2em] text-emerald-300 mb-1">Live Feed</div>
              <div className="text-2xl font-bold text-white tracking-tighter">GLOBAL MONITORING</div>
@@ -407,7 +610,7 @@ export default function App() {
                       SCANNING
                     </span>
                   ) : "ACTIVE"}
-                </div>
+              </div>
               </div>
             </div>
 
@@ -481,6 +684,15 @@ export default function App() {
             />
         )}
       </AnimatePresence>
+
+      {/* Disaster Detection Alert (LIVE mode and after MOCK payouts) */}
+      {disasterAlert && (
+        <DisasterAlert
+          alert={disasterAlert}
+          onClose={() => setDisasterAlert(null)}
+          apiUrl={API_URL}
+        />
+      )}
 
       <WalletConnect mode={mode} log={logLine} />
       {mode === "MOCK" && <DevTools onTrigger={triggerScenario} />}

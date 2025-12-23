@@ -26,6 +26,11 @@ class SentinelEventDB(SQLModel, table=True):
     payout_amount: Optional[str] = None
     ai_confidence: Optional[int] = None
     ai_reasoning: Optional[str] = None
+    # NGO information for transparency
+    ngo_name: Optional[str] = None
+    ngo_address: Optional[str] = None
+    ngo_id: Optional[str] = None
+    payout_timestamp: Optional[datetime] = None
 
 # Async Engine
 sqlite_file_name = "sentinel.db"
