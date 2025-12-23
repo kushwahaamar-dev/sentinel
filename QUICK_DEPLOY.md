@@ -25,9 +25,9 @@ Deploy Universal Sentinel for **FREE** so judges can access it.
    - New → Static Site
    - Connect repo: `kushwahaamar-dev/sentinel`
    - Settings:
-     - Root Directory: `frontend`
-     - Build: `npm install && npm run build`
-     - Publish: `frontend/dist`
+     - **Root Directory**: `frontend` (IMPORTANT!)
+     - Build: `npm run build` (default)
+     - Publish: `dist` (default)
    - Environment:
      - `VITE_API_URL=https://your-backend-url.onrender.com`
    - Deploy → Copy URL
@@ -46,10 +46,10 @@ Deploy Universal Sentinel for **FREE** so judges can access it.
 1. Sign up: https://vercel.com (free with GitHub)
 2. Import repo: `kushwahaamar-dev/sentinel`
 3. Settings:
-   - Framework: Vite
-   - Root: `frontend`
-   - Build: `npm run build`
-   - Output: `dist`
+   - Framework: Other (or Vite)
+   - **Root Directory**: `frontend` (CRITICAL - must set this!)
+   - Build: `npm run build` (default)
+   - Output: `dist` (default)
 4. Environment:
    - `VITE_API_URL=https://your-backend-url.onrender.com`
 5. Deploy
