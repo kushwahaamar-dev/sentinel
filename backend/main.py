@@ -117,16 +117,9 @@ async def background_poller():
 app = FastAPI(title="Universal Sentinel API", lifespan=lifespan)
 
 # CORS - Allow all origins for local development
-# CORS configuration - allow all origins for easy deployment
-# In production, you can restrict to specific domains
-cors_origins = ["*"]  # Allows all origins (safe with allow_credentials=False)
-if settings.sentinel_mode == "LIVE":
-    # Optionally add specific production domains here
-    # cors_origins = ["https://your-app.vercel.app", "https://*.vercel.app"]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
+    allow_origins=["*"],
     allow_credentials=False,  # Must be False when allow_origins=["*"]
     allow_methods=["*"],
     allow_headers=["*"],
