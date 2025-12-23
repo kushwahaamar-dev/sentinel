@@ -117,6 +117,7 @@ async def background_poller():
 app = FastAPI(title="Universal Sentinel API", lifespan=lifespan)
 
 # CORS - Allow specific origins for production and local development
+# Also allow all Vercel preview deployments (they have dynamic URLs)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -124,6 +125,7 @@ app.add_middleware(
         "https://sentinel-sigma-five.vercel.app/",  # With trailing slash
         "http://localhost:5173",  # Keep for local dev
     ],
+    allow_origin_regex=r"https://.*\.vercel\.app.*",  # Allow all Vercel preview/production URLs
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
