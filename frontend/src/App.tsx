@@ -43,8 +43,8 @@ type Toast = {
   duration?: number;
 };
 
-// Use 127.0.0.1 to avoid IPv6 localhost (::1) connection issues in some environments
-const API_URL = "http://127.0.0.1:8000";
+// Use environment variable for production, fallback to localhost for development
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 const ETHERSCAN_BASE = "https://etherscan.io/tx/";
 const SOLSCAN_BASE = "https://solscan.io/tx/";
 

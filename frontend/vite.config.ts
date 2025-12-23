@@ -20,4 +20,8 @@ export default defineConfig({
   optimizeDeps: {
     include: ["buffer", "process"],
   },
+  build: {
+    outDir: "dist",
+    sourcemap: false,
+  },
 });
