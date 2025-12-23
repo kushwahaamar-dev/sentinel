@@ -25,7 +25,16 @@ settings = get_settings()
 
 # Initialize NGO Manager
 ngo_manager = NGOManager()
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://sentinel-sigma-five.vercel.app/",
+        "http://localhost:5173",  # Keep for local dev
+    ],
+    allow_credentials=False,
+    allow_methods=["*"],
+    expose_headers=["*"],
+)
 LIVE_EVENT_CACHE: dict[str, dict] = {}
 SOURCE_STATUS_CACHE: dict[str, dict] = {
     "gdacs": {"status": "unknown", "last_check": None, "events": 0},
