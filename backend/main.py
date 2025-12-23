@@ -121,6 +121,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://sentinel-sigma-five.vercel.app",
+        "https://sentinel-sigma-five.vercel.app/",  # With trailing slash
         "http://localhost:5173",  # Keep for local dev
     ],
     allow_credentials=False,
