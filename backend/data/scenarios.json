@@ -1,0 +1,38 @@
+[
+  {
+    "id": "scenario-quake-tokyo",
+    "name": "The Big One",
+    "type": "earthquake",
+    "lat": 35.6764,
+    "lon": 139.6500,
+    "magnitude": 8.2,
+    "description": "Massive 8.2 magnitude quake strikes Tokyo metro. Early USGS and JMA telemetry show severe shaking near dense population centers.",
+    "severity": "Red",
+    "population_affected": 14000000,
+    "infrastructure_risk": "critical"
+  },
+  {
+    "id": "scenario-fire-yellowstone",
+    "name": "Yellowstone Eruption",
+    "type": "volcano",
+    "lat": 44.4280,
+    "lon": -110.5885,
+    "description": "Thermal anomaly and ash plume detected over Yellowstone Caldera. Persistent NASA EONET thermal readings plus local seismic swarms.",
+    "severity": "Orange",
+    "thermal_reading_celsius": 450,
+    "ash_plume_height_km": 12
+  },
+  {
+    "id": "scenario-storm-miami",
+    "name": "Florida Super-Cane",
+    "type": "storm",
+    "lat": 25.7617,
+    "lon": -80.1918,
+    "category": 5,
+    "description": "Category 5 hurricane making landfall near Miami with sustained 180mph winds. Evacuation orders issued across Miami-Dade.",
+    "severity": "Warning",
+    "wind_speed_mph": 180,
+    "storm_surge_ft": 15,
+    "evacuation_zones": ["Zone A", "Zone B", "Zone C"]
+  }
+]

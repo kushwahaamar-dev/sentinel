@@ -1,0 +1,21 @@
+# Environments
+.env
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.pyc
+
+# Database
+sentinel.db
+sentinel.db-journal
+
+# Node
+node_modules/
+dist/
+.npm-cache/
+
+# System
+.DS_Store
